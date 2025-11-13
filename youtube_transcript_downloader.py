@@ -115,6 +115,64 @@ class YouTubeTranscriptDownloader:
 
         raise ValueError(f"Could not extract channel identifier from URL: {channel_url}")
 
+    def _get_video_cache_filename(self, channel_identifier: str) -> Path:
+        """
+        Get the cache filename for a channel's video list.
+
+        Args:
+            channel_identifier: Channel ID or handle
+
+        Returns:
+            Path to the video cache file
+        """
+        # Sanitize channel identifier for filename
+        safe_id = channel_identifier.replace('@', '').replace('/', '_')
+        return self.output_dir / f".video_cache_{safe_id}.json"
+
+    def _load_video_cache(self, channel_identifier: str) -> Optional[List[Dict]]:
+        """
+        Load video list from cache if available.
+
+        Args:
+            channel_identifier: Channel ID or handle
+
+        Returns:
+            List of cached videos or None if cache doesn't exist
+        """
+        cache_file = self._get_video_cache_filename(channel_identifier)
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                    self.logger.info(f"Loaded {len(cache_data['videos'])} videos from cache")
+                    self.logger.info(f"Cache created: {cache_data['cached_at']}")
+                    return cache_data['videos']
+            except Exception as e:
+                self.logger.warning(f"Failed to load video cache: {e}")
+        return None
+
+    def _save_video_cache(self, channel_identifier: str, videos: List[Dict]) -> None:
+        """
+        Save video list to cache.
+
+        Args:
+            channel_identifier: Channel ID or handle
+            videos: List of video dictionaries to cache
+        """
+        cache_file = self._get_video_cache_filename(channel_identifier)
+        try:
+            cache_data = {
+                'channel_identifier': channel_identifier,
+                'cached_at': datetime.now().isoformat(),
+                'video_count': len(videos),
+                'videos': videos
+            }
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, indent=2, ensure_ascii=False)
+            self.logger.debug(f"Saved {len(videos)} videos to cache")
+        except Exception as e:
+            self.logger.warning(f"Failed to save video cache: {e}")
+
     def get_channel_videos(self, channel_identifier: str, limit: Optional[int] = None) -> List[Dict]:
         """
         Get all videos from a channel.
@@ -126,6 +184,14 @@ class YouTubeTranscriptDownloader:
         Returns:
             List of video dictionaries with metadata
         """
+        # Try to load from cache if not forcing refresh
+        if not self.force_download:
+            cached_videos = self._load_video_cache(channel_identifier)
+            if cached_videos:
+                if limit:
+                    return cached_videos[:limit]
+                return cached_videos
+
         self.logger.info(f"Fetching videos from channel: {channel_identifier}")
 
         videos = []
@@ -164,6 +230,10 @@ class YouTubeTranscriptDownloader:
             raise
 
         self.logger.info(f"Found {len(videos)} videos")
+
+        # Save to cache for future runs
+        self._save_video_cache(channel_identifier, videos)
+
         return videos
 
     def _get_transcript_filename(self, video_id: str, video_title: str, format: str = 'json') -> Path:
@@ -438,7 +508,7 @@ Examples:
   # Specify custom output directory
   %(prog)s "https://www.youtube.com/@username" --output my_transcripts
 
-  # Force re-download (ignore cache)
+  # Force refresh video list and re-download all transcripts (ignore cache)
   %(prog)s "https://www.youtube.com/@username" --force
         """
     )
@@ -483,7 +553,7 @@ Examples:
     parser.add_argument(
         '--force',
         action='store_true',
-        help='Force re-download even if transcript already exists (ignore cache)'
+        help='Force refresh video list and re-download all transcripts (ignore all caches)'
     )
 
     args = parser.parse_args()
