@@ -66,12 +66,29 @@ class YouTubeTranscriptDownloader:
 
             # Disable SSL verification when using proxy to avoid certificate errors
             # ScraperAPI proxies handle SSL termination, so we don't need to verify
-            os.environ['REQUESTS_CA_BUNDLE'] = ''
-            os.environ['CURL_CA_BUNDLE'] = ''
-
-            # Also disable SSL warnings from urllib3
+            # We need to monkey-patch the requests library since the underlying libraries
+            # (youtube-transcript-api, scrapetube) don't expose SSL verification options
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+            # Monkey-patch requests.Session to disable SSL verification
+            original_request = requests.Session.request
+            def patched_request(self, method, url, **kwargs):
+                kwargs['verify'] = False
+                return original_request(self, method, url, **kwargs)
+            requests.Session.request = patched_request
+
+            # Also patch the top-level requests functions
+            original_get = requests.get
+            original_post = requests.post
+            def patched_get(url, **kwargs):
+                kwargs['verify'] = False
+                return original_get(url, **kwargs)
+            def patched_post(url, **kwargs):
+                kwargs['verify'] = False
+                return original_post(url, **kwargs)
+            requests.get = patched_get
+            requests.post = patched_post
 
         # Setup logging
         self.logger = self._setup_logger()
