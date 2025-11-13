@@ -243,11 +243,20 @@ class YouTubeTranscriptDownloader:
             # Convert transcript snippets to dictionaries for JSON serialization
             transcript_list = []
             for snippet in transcript_data:
-                transcript_list.append({
-                    'text': snippet['text'],
-                    'start': snippet['start'],
-                    'duration': snippet['duration']
-                })
+                # Handle both dict-like and object-like snippet formats
+                if isinstance(snippet, dict):
+                    transcript_list.append({
+                        'text': snippet['text'],
+                        'start': snippet['start'],
+                        'duration': snippet['duration']
+                    })
+                else:
+                    # FetchedTranscriptSnippet objects use attributes
+                    transcript_list.append({
+                        'text': snippet.text,
+                        'start': snippet.start,
+                        'duration': snippet.duration
+                    })
 
             result = {
                 'video_id': video_id,
