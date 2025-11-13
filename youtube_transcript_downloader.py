@@ -36,17 +36,19 @@ except ImportError as e:
 class YouTubeTranscriptDownloader:
     """Downloads transcripts from all videos in a YouTube channel."""
 
-    def __init__(self, output_dir: str = "transcripts", language_codes: Optional[List[str]] = None):
+    def __init__(self, output_dir: str = "transcripts", language_codes: Optional[List[str]] = None, force_download: bool = False):
         """
         Initialize the transcript downloader.
 
         Args:
             output_dir: Directory to save transcripts
             language_codes: List of preferred language codes (e.g., ['en', 'es'])
+            force_download: If True, re-download even if transcript exists
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.language_codes = language_codes or ['en']
+        self.force_download = force_download
 
         # Setup logging
         self.logger = self._setup_logger()
@@ -164,6 +166,41 @@ class YouTubeTranscriptDownloader:
         self.logger.info(f"Found {len(videos)} videos")
         return videos
 
+    def _get_transcript_filename(self, video_id: str, video_title: str, format: str = 'json') -> Path:
+        """
+        Get the expected filename for a transcript.
+
+        Args:
+            video_id: YouTube video ID
+            video_title: Video title
+            format: Output format ('json', 'txt', or 'srt')
+
+        Returns:
+            Path to the transcript file
+        """
+        # Sanitize filename
+        safe_title = "".join(c for c in video_title if c.isalnum() or c in (' ', '-', '_')).strip()
+        safe_title = safe_title[:100]  # Limit length
+        base_filename = f"{video_id}_{safe_title}"
+
+        extension = format
+        return self.output_dir / f"{base_filename}.{extension}"
+
+    def transcript_exists(self, video_id: str, video_title: str, format: str = 'json') -> bool:
+        """
+        Check if a transcript file already exists.
+
+        Args:
+            video_id: YouTube video ID
+            video_title: Video title
+            format: Output format to check
+
+        Returns:
+            True if transcript file exists
+        """
+        filepath = self._get_transcript_filename(video_id, video_title, format)
+        return filepath.exists()
+
     def download_transcript(self, video_id: str, video_title: str) -> Optional[Dict]:
         """
         Download transcript for a single video.
@@ -247,19 +284,16 @@ class YouTubeTranscriptDownloader:
             format: Output format ('json', 'txt', or 'srt')
         """
         video_id = transcript_data['video_id']
-        # Sanitize filename
-        safe_title = "".join(c for c in transcript_data['title'] if c.isalnum() or c in (' ', '-', '_')).strip()
-        safe_title = safe_title[:100]  # Limit length
+        video_title = transcript_data['title']
 
-        base_filename = f"{video_id}_{safe_title}"
+        # Use helper method to get filepath
+        filepath = self._get_transcript_filename(video_id, video_title, format)
 
         if format == 'json':
-            filepath = self.output_dir / f"{base_filename}.json"
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(transcript_data, f, indent=2, ensure_ascii=False)
 
         elif format == 'txt':
-            filepath = self.output_dir / f"{base_filename}.txt"
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(f"Title: {transcript_data['title']}\n")
                 f.write(f"Video ID: {transcript_data['video_id']}\n")
@@ -271,7 +305,6 @@ class YouTubeTranscriptDownloader:
                     f.write(f"{entry['text']}\n")
 
         elif format == 'srt':
-            filepath = self.output_dir / f"{base_filename}.srt"
             with open(filepath, 'w', encoding='utf-8') as f:
                 for idx, entry in enumerate(transcript_data['transcript'], 1):
                     start_time = self._format_timestamp(entry['start'])
@@ -311,11 +344,14 @@ class YouTubeTranscriptDownloader:
         self.logger.info(f"Starting transcript download from: {channel_url}")
         self.logger.info(f"Output directory: {self.output_dir.absolute()}")
         self.logger.info(f"Output format: {format}")
+        if not self.force_download:
+            self.logger.info(f"Cache enabled: Skipping already downloaded transcripts")
 
         stats = {
             'total_videos': 0,
             'successful': 0,
             'failed': 0,
+            'skipped': 0,
             'start_time': datetime.now()
         }
 
@@ -335,6 +371,12 @@ class YouTubeTranscriptDownloader:
             for idx, video in enumerate(videos, 1):
                 self.logger.info(f"Processing video {idx}/{len(videos)}: {video['title']}")
 
+                # Check if transcript already exists (caching)
+                if not self.force_download and self.transcript_exists(video['video_id'], video['title'], format):
+                    self.logger.info(f"⊙ Skipping (already exists): {video['title']}")
+                    stats['skipped'] += 1
+                    continue
+
                 transcript_data = self.download_transcript(video['video_id'], video['title'])
 
                 if transcript_data:
@@ -352,6 +394,7 @@ class YouTubeTranscriptDownloader:
             self.logger.info("=" * 80)
             self.logger.info(f"Total videos: {stats['total_videos']}")
             self.logger.info(f"Successfully downloaded: {stats['successful']}")
+            self.logger.info(f"Skipped (cached): {stats['skipped']}")
             self.logger.info(f"Failed: {stats['failed']}")
             self.logger.info(f"Duration: {stats['duration']:.2f} seconds")
             self.logger.info(f"Output directory: {self.output_dir.absolute()}")
@@ -385,6 +428,9 @@ Examples:
 
   # Specify custom output directory
   %(prog)s "https://www.youtube.com/@username" --output my_transcripts
+
+  # Force re-download (ignore cache)
+  %(prog)s "https://www.youtube.com/@username" --force
         """
     )
 
@@ -425,12 +471,19 @@ Examples:
         help='Enable verbose logging'
     )
 
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force re-download even if transcript already exists (ignore cache)'
+    )
+
     args = parser.parse_args()
 
     # Create downloader
     downloader = YouTubeTranscriptDownloader(
         output_dir=args.output,
-        language_codes=args.languages
+        language_codes=args.languages,
+        force_download=args.force
     )
 
     if args.verbose:
