@@ -1,2 +1,2 @@
 scrapetube>=2.5.1
-youtube-transcript-api>=0.6.1
+youtube-transcript-api>=0.6.2,<1.2.0
