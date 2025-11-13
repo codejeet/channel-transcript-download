@@ -11,6 +11,7 @@ A Python script to massively download video transcripts from YouTube channels. T
 - Progress logging and error handling
 - No API key required (uses scrapetube for video discovery)
 - Detailed logging to both console and file
+- **NEW**: ScraperAPI integration to avoid rate limiting and request blocking
 
 ## Requirements
 
@@ -118,7 +119,8 @@ More text...
 ```
 usage: youtube_transcript_downloader.py [-h] [-o OUTPUT] [-f {json,txt,srt}]
                                         [-l LANGUAGES [LANGUAGES ...]]
-                                        [--limit LIMIT] [-v]
+                                        [--limit LIMIT] [-v] [--force]
+                                        [--scraperapi-key SCRAPERAPI_KEY]
                                         channel_url
 
 positional arguments:
@@ -134,6 +136,9 @@ optional arguments:
                         Preferred language codes (default: en)
   --limit LIMIT         Maximum number of videos to process
   -v, --verbose         Enable verbose logging
+  --force               Force refresh video list and re-download all transcripts
+  --scraperapi-key SCRAPERAPI_KEY
+                        ScraperAPI key for proxy support (default: SCRAPERAPI_KEY env var)
 ```
 
 ## How It Works
@@ -197,16 +202,86 @@ python youtube_transcript_downloader.py "https://www.youtube.com/@DuolingoSpanis
 python youtube_transcript_downloader.py "https://www.youtube.com/@crashcourse" --format srt --output course_subtitles
 ```
 
+## Using ScraperAPI (Recommended for Reliability)
+
+ScraperAPI helps avoid rate limiting, IP blocks, and request failures when downloading large numbers of transcripts. This is especially useful for channels with many videos.
+
+### Why Use ScraperAPI?
+
+- **Avoid Rate Limiting**: YouTube may temporarily block requests if too many are made quickly
+- **Better Success Rate**: Reduces failed requests and "Too Many Requests" errors
+- **Automatic Retry Logic**: ScraperAPI handles retries automatically
+- **Geographic Distribution**: Routes requests through different IPs
+
+### Setup
+
+1. **Sign up for ScraperAPI**: Get a free account at [https://www.scraperapi.com](https://www.scraperapi.com)
+   - Free tier includes 5,000 API credits (enough for ~5,000 requests)
+
+2. **Get your API key**: Find it in your ScraperAPI dashboard
+
+3. **Test your API key** (optional but recommended):
+   ```bash
+   python test_scraperapi_connection.py YOUR_API_KEY
+   ```
+
+4. **Configure the script**: Use one of these methods:
+
+   **Method 1: Environment Variable (Recommended)**
+   ```bash
+   export SCRAPERAPI_KEY="your_api_key_here"
+   python youtube_transcript_downloader.py "https://www.youtube.com/@channelname"
+   ```
+
+   **Method 2: Command-Line Argument**
+   ```bash
+   python youtube_transcript_downloader.py "https://www.youtube.com/@channelname" --scraperapi-key your_api_key_here
+   ```
+
+### ScraperAPI Examples
+
+```bash
+# Download with ScraperAPI to avoid rate limiting
+export SCRAPERAPI_KEY="your_api_key_here"
+python youtube_transcript_downloader.py "https://www.youtube.com/@veritasium"
+
+# Combine with other options
+python youtube_transcript_downloader.py "https://www.youtube.com/@3blue1brown" \
+  --scraperapi-key your_api_key_here \
+  --format txt \
+  --limit 50
+
+# Process large channels without worrying about blocks
+python youtube_transcript_downloader.py "https://www.youtube.com/@crashcourse" \
+  --scraperapi-key your_api_key_here \
+  --output course_content
+```
+
+### How It Works
+
+When ScraperAPI is enabled, all HTTP requests (both video discovery and transcript fetching) are routed through ScraperAPI's proxy servers. This provides:
+
+- Automatic proxy rotation
+- Request retries on failure
+- IP rotation to avoid blocks
+- Geographic distribution of requests
+
+The integration is transparent - all existing features work the same way, just more reliably.
+
 ## Troubleshooting
 
 **Issue**: "Too Many Requests" error
-- **Solution**: Wait a few minutes before retrying. YouTube may temporarily rate-limit requests.
+- **Solution**: Use ScraperAPI to avoid rate limiting: `--scraperapi-key YOUR_KEY`
+- **Alternative**: Wait a few minutes before retrying. YouTube may temporarily rate-limit requests.
 
 **Issue**: No transcripts found for videos
 - **Solution**: Not all videos have transcripts. Try with `--languages en` to include auto-generated English transcripts.
 
 **Issue**: Import errors
 - **Solution**: Make sure all dependencies are installed: `pip install -r requirements.txt`
+
+**Issue**: Many failed requests or blocked videos
+- **Solution**: Use ScraperAPI for better reliability and to bypass IP blocks
 
 ## Contributing
 

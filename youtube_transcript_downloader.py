@@ -26,6 +26,7 @@ try:
         VideoUnavailable,
         RequestBlocked
     )
+    import requests
 except ImportError as e:
     print(f"Error: Missing required dependency: {e}")
     print("\nPlease install required packages:")
@@ -36,7 +37,7 @@ except ImportError as e:
 class YouTubeTranscriptDownloader:
     """Downloads transcripts from all videos in a YouTube channel."""
 
-    def __init__(self, output_dir: str = "transcripts", language_codes: Optional[List[str]] = None, force_download: bool = False):
+    def __init__(self, output_dir: str = "transcripts", language_codes: Optional[List[str]] = None, force_download: bool = False, scraperapi_key: Optional[str] = None):
         """
         Initialize the transcript downloader.
 
@@ -44,14 +45,30 @@ class YouTubeTranscriptDownloader:
             output_dir: Directory to save transcripts
             language_codes: List of preferred language codes (e.g., ['en', 'es'])
             force_download: If True, re-download even if transcript exists
+            scraperapi_key: ScraperAPI key for proxy support (optional)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.language_codes = language_codes or ['en']
         self.force_download = force_download
+        self.scraperapi_key = scraperapi_key
+
+        # Setup ScraperAPI proxy if key is provided
+        self.proxies = None
+        if self.scraperapi_key:
+            self.proxies = {
+                'http': f'http://scraperapi:{self.scraperapi_key}@proxy-server.scraperapi.com:8001',
+                'https': f'http://scraperapi:{self.scraperapi_key}@proxy-server.scraperapi.com:8001'
+            }
+            # Set environment variables for libraries that use requests internally
+            os.environ['HTTP_PROXY'] = self.proxies['http']
+            os.environ['HTTPS_PROXY'] = self.proxies['https']
 
         # Setup logging
         self.logger = self._setup_logger()
+
+        if self.scraperapi_key:
+            self.logger.info("ScraperAPI enabled - routing requests through proxy")
 
     def _setup_logger(self) -> logging.Logger:
         """Setup logging configuration."""
@@ -536,8 +553,18 @@ Examples:
   # Force refresh video list and re-download all transcripts (ignore cache)
   %(prog)s "https://www.youtube.com/@username" --force
 
+  # Use ScraperAPI to avoid rate limiting and blocks
+  %(prog)s "https://www.youtube.com/@username" --scraperapi-key YOUR_API_KEY
+
+  # Or set SCRAPERAPI_KEY environment variable
+  export SCRAPERAPI_KEY=YOUR_API_KEY
+  %(prog)s "https://www.youtube.com/@username"
+
 Note: Members-only and age-restricted content cannot be accessed as cookie
       authentication is currently unavailable in the youtube-transcript-api library.
+
+      For better reliability and to avoid rate limiting, consider using ScraperAPI
+      by signing up at https://www.scraperapi.com
         """
     )
 
@@ -584,13 +611,20 @@ Note: Members-only and age-restricted content cannot be accessed as cookie
         help='Force refresh video list and re-download all transcripts (ignore all caches)'
     )
 
+    parser.add_argument(
+        '--scraperapi-key',
+        default=os.environ.get('SCRAPERAPI_KEY'),
+        help='ScraperAPI key for proxy support (default: SCRAPERAPI_KEY environment variable)'
+    )
+
     args = parser.parse_args()
 
     # Create downloader
     downloader = YouTubeTranscriptDownloader(
         output_dir=args.output,
         language_codes=args.languages,
-        force_download=args.force
+        force_download=args.force,
+        scraperapi_key=args.scraperapi_key
     )
 
     if args.verbose:
