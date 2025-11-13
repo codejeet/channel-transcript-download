@@ -209,7 +209,7 @@ class YouTubeTranscriptDownloader:
                 'language': transcript.language,
                 'language_code': transcript.language_code,
                 'is_generated': transcript.is_generated,
-                'transcript': transcript_data
+                'transcript': list(transcript_data)  # Convert to list for JSON serialization
             }
 
             self.logger.info(f"✓ Downloaded transcript for: {video_title} ({transcript.language_code})")
