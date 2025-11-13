@@ -203,13 +203,22 @@ class YouTubeTranscriptDownloader:
             # Fetch the transcript data
             transcript_data = transcript.fetch()
 
+            # Convert transcript snippets to dictionaries for JSON serialization
+            transcript_list = []
+            for snippet in transcript_data:
+                transcript_list.append({
+                    'text': snippet['text'],
+                    'start': snippet['start'],
+                    'duration': snippet['duration']
+                })
+
             result = {
                 'video_id': video_id,
                 'title': video_title,
                 'language': transcript.language,
                 'language_code': transcript.language_code,
                 'is_generated': transcript.is_generated,
-                'transcript': list(transcript_data)  # Convert to list for JSON serialization
+                'transcript': transcript_list
             }
 
             self.logger.info(f"✓ Downloaded transcript for: {video_title} ({transcript.language_code})")
