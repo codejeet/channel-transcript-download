@@ -359,9 +359,16 @@ class YouTubeTranscriptDownloader:
                 self.logger.warning(f"⊘ Members-only content (cannot access): {video_title}")
             else:
                 self.logger.warning(f"✗ Video unavailable: {video_title}")
-        except RequestBlocked:
-            self.logger.error(f"✗ Too many requests or IP blocked. Please wait before retrying.")
-            raise
+        except RequestBlocked as e:
+            # Log detailed error information to diagnose false positives
+            import traceback
+            self.logger.error(f"✗ RequestBlocked exception for: {video_title}")
+            self.logger.error(f"   Exception type: {type(e).__name__}")
+            self.logger.error(f"   Exception message: {str(e)}")
+            self.logger.error(f"   Full traceback: {traceback.format_exc()}")
+            # Don't crash - treat like other errors and continue processing
+            # If this is a real rate limit, it will show up consistently
+            self.logger.warning(f"   Skipping video and continuing...")
         except Exception as e:
             # Check if it's a members-only video in the generic exception
             error_msg = str(e).lower()
