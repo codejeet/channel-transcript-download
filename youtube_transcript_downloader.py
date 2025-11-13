@@ -64,6 +64,15 @@ class YouTubeTranscriptDownloader:
             os.environ['HTTP_PROXY'] = self.proxies['http']
             os.environ['HTTPS_PROXY'] = self.proxies['https']
 
+            # Disable SSL verification when using proxy to avoid certificate errors
+            # ScraperAPI proxies handle SSL termination, so we don't need to verify
+            os.environ['REQUESTS_CA_BUNDLE'] = ''
+            os.environ['CURL_CA_BUNDLE'] = ''
+
+            # Also disable SSL warnings from urllib3
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
         # Setup logging
         self.logger = self._setup_logger()
 
