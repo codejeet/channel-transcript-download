@@ -283,8 +283,16 @@ class YouTubeTranscriptDownloader:
             Dictionary with transcript data or None if failed
         """
         try:
-            # Try to get transcript in preferred languages
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            # Support both old API (0.6.x-1.1.x) and new API (1.2.0+)
+            # Old API: YouTubeTranscriptApi.list_transcripts(video_id) - static method
+            # New API: YouTubeTranscriptApi().list(video_id) - instance method
+            if hasattr(YouTubeTranscriptApi, 'list_transcripts'):
+                # Old API (0.6.x-1.1.x)
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            else:
+                # New API (1.2.0+)
+                api = YouTubeTranscriptApi()
+                transcript_list = api.list(video_id)
 
             # Try to find transcript in preferred languages
             transcript = None
