@@ -51,6 +51,7 @@ class YouTubeTranscriptDownloader:
         self.language_codes = language_codes or ['en']
         self.force_download = force_download
         self.cookies_path = cookies_path
+        self._cookie_warning_shown = False  # Track if we've shown the cookie version warning
 
         # Setup logging
         self.logger = self._setup_logger()
@@ -287,9 +288,18 @@ class YouTubeTranscriptDownloader:
         try:
             # Try to get transcript in preferred languages
             # Use cookies for authentication if provided (for members-only content)
-            if self.cookies_path:
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, cookies=self.cookies_path)
-            else:
+            # Note: cookies parameter support varies by youtube-transcript-api version
+            try:
+                if self.cookies_path:
+                    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, cookies=self.cookies_path)
+                else:
+                    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            except TypeError as e:
+                # Fallback if cookies parameter not supported in this version
+                if self.cookies_path and 'cookies' in str(e) and not self._cookie_warning_shown:
+                    self.logger.warning(f"Cookie authentication not supported in your youtube-transcript-api version")
+                    self.logger.warning(f"Please upgrade: pip install --upgrade 'youtube-transcript-api>=0.6.3'")
+                    self._cookie_warning_shown = True
                 transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
 
             # Try to find transcript in preferred languages
