@@ -24,7 +24,7 @@ try:
         TranscriptsDisabled,
         NoTranscriptFound,
         VideoUnavailable,
-        TooManyRequests
+        RequestBlocked
     )
 except ImportError as e:
     print(f"Error: Missing required dependency: {e}")
@@ -221,8 +221,8 @@ class YouTubeTranscriptDownloader:
             self.logger.warning(f"✗ No transcript found for: {video_title}")
         except VideoUnavailable:
             self.logger.warning(f"✗ Video unavailable: {video_title}")
-        except TooManyRequests:
-            self.logger.error(f"✗ Too many requests. Please wait before retrying.")
+        except RequestBlocked:
+            self.logger.error(f"✗ Too many requests or IP blocked. Please wait before retrying.")
             raise
         except Exception as e:
             self.logger.error(f"✗ Error downloading transcript for {video_title}: {e}")
