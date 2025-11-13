@@ -36,7 +36,7 @@ except ImportError as e:
 class YouTubeTranscriptDownloader:
     """Downloads transcripts from all videos in a YouTube channel."""
 
-    def __init__(self, output_dir: str = "transcripts", language_codes: Optional[List[str]] = None, force_download: bool = False, cookies_path: Optional[str] = None):
+    def __init__(self, output_dir: str = "transcripts", language_codes: Optional[List[str]] = None, force_download: bool = False):
         """
         Initialize the transcript downloader.
 
@@ -44,13 +44,11 @@ class YouTubeTranscriptDownloader:
             output_dir: Directory to save transcripts
             language_codes: List of preferred language codes (e.g., ['en', 'es'])
             force_download: If True, re-download even if transcript exists
-            cookies_path: Path to browser cookies file for authentication (members-only content)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.language_codes = language_codes or ['en']
         self.force_download = force_download
-        self.cookies_path = cookies_path
 
         # Setup logging
         self.logger = self._setup_logger()
@@ -286,11 +284,7 @@ class YouTubeTranscriptDownloader:
         """
         try:
             # Try to get transcript in preferred languages
-            # Use cookies for authentication if provided (for members-only content)
-            if self.cookies_path:
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, cookies=self.cookies_path)
-            else:
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
 
             # Try to find transcript in preferred languages
             transcript = None
@@ -354,11 +348,7 @@ class YouTubeTranscriptDownloader:
             # Check if it's a members-only video
             error_msg = str(e).lower()
             if 'members-only' in error_msg or 'join this channel' in error_msg:
-                if not self.cookies_path:
-                    self.logger.warning(f"⊘ Members-only content (skipping): {video_title}")
-                    self.logger.info(f"  💡 Tip: Use --cookies to access members-only content")
-                else:
-                    self.logger.warning(f"⊘ Members-only (no access): {video_title}")
+                self.logger.warning(f"⊘ Members-only content (cannot access): {video_title}")
             else:
                 self.logger.warning(f"✗ Video unavailable: {video_title}")
         except RequestBlocked:
@@ -368,11 +358,7 @@ class YouTubeTranscriptDownloader:
             # Check if it's a members-only video in the generic exception
             error_msg = str(e).lower()
             if 'members-only' in error_msg or 'join this channel' in error_msg:
-                if not self.cookies_path:
-                    self.logger.warning(f"⊘ Members-only content (skipping): {video_title}")
-                    self.logger.info(f"  💡 Tip: Use --cookies to access members-only content")
-                else:
-                    self.logger.warning(f"⊘ Members-only (no access): {video_title}")
+                self.logger.warning(f"⊘ Members-only content (cannot access): {video_title}")
             else:
                 self.logger.error(f"✗ Error downloading transcript for {video_title}: {e}")
 
@@ -449,8 +435,6 @@ class YouTubeTranscriptDownloader:
         self.logger.info(f"Output format: {format}")
         if not self.force_download:
             self.logger.info(f"Cache enabled: Skipping already downloaded transcripts")
-        if self.cookies_path:
-            self.logger.info(f"Authentication enabled: Using cookies from {self.cookies_path}")
 
         stats = {
             'total_videos': 0,
@@ -537,13 +521,8 @@ Examples:
   # Force refresh video list and re-download all transcripts (ignore cache)
   %(prog)s "https://www.youtube.com/@username" --force
 
-  # Access members-only content using browser cookies
-  %(prog)s "https://www.youtube.com/@username" --cookies /path/to/cookies.txt
-
-Note: To export cookies from your browser, use a browser extension like:
-  - Chrome/Edge: "Get cookies.txt LOCALLY" or "cookies.txt"
-  - Firefox: "cookies.txt" by Lenka Segura
-Export cookies for youtube.com and save as a text file in Netscape format.
+Note: Members-only and age-restricted content cannot be accessed as cookie
+      authentication is currently unavailable in the youtube-transcript-api library.
         """
     )
 
@@ -590,20 +569,13 @@ Export cookies for youtube.com and save as a text file in Netscape format.
         help='Force refresh video list and re-download all transcripts (ignore all caches)'
     )
 
-    parser.add_argument(
-        '--cookies',
-        type=str,
-        help='Path to browser cookies file (for accessing members-only content)'
-    )
-
     args = parser.parse_args()
 
     # Create downloader
     downloader = YouTubeTranscriptDownloader(
         output_dir=args.output,
         language_codes=args.languages,
-        force_download=args.force,
-        cookies_path=args.cookies
+        force_download=args.force
     )
 
     if args.verbose:
